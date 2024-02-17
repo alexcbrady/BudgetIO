@@ -56,14 +56,67 @@ categoryDrop.config(width=19)
 categoryDrop.grid(row=4, column=2)
 
 #INSERT DATA BUTTON
-insertGo = Button(windowMain,text='Insert', command=(lambda: (insertSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get()))))
+insertGo = Button(windowMain,text='Insert', command=(lambda: (insertExpenseSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get()))))
 insertGo.grid(row=4, column=3)
 
 
+#INSERT INCOME WINDOW
+def newIncomeWindow():
+    incomeWindow = Toplevel(windowMain)
+    incomeWindow.title('Income')
+    incomeWindow.geometry('600x400')
+
+    #DATE OF INCOME
+    incomeDateLabel = Label(incomeWindow, text='Enter date of income:')
+    incomeDateLabel.grid(row=1, column=1)
+
+    incomeDateEntry = DateEntry(incomeWindow, date_pattern='yyyy-mm-dd', width=19)
+    incomeDateEntry.grid(row=1, column=2)
+
+    #CHECKING AMOUNT
+    checkingLabel = Label(incomeWindow, text='Enter checking amount:')
+    checkingLabel.grid(row=2, column=1)
+
+    checkingVar = StringVar()
+    checkingEntry = Entry(incomeWindow, textvariable=checkingVar, background='white', foreground='black')
+    checkingEntry.grid(row=2, column=2)
+
+    #SAVINGS AMOUNT
+    savingsLabel = Label(incomeWindow, text='Enter savings amount:')
+    savingsLabel.grid(row=3, column=1)
+
+    savingsVar = StringVar()
+    savingsEntry = Entry(incomeWindow, textvariable=savingsVar, background='white', foreground='black')
+    savingsEntry.grid(row=3,column=2)
+
+    #RETIREMENT AMOUNT
+    retirementLabel = Label(incomeWindow, text='Enter retirement amount:')
+    retirementLabel.grid(row=4, column=1)
+
+    retirementVar = StringVar()
+    retirementEntry = Entry(incomeWindow, textvariable=retirementVar, background='white', foreground='black')
+    retirementEntry.grid(row=4, column=2)
+
+    #SOURCE OF INCOME
+    sourceLabel = Label(incomeWindow, text='Enter source of income:')
+    sourceLabel.grid(row=5, column=1)
+
+    sources = [
+    'Qorvo',
+    'Other'
+    ]
+    sourceVar = StringVar()
+    sourceDrop = OptionMenu(incomeWindow, sourceVar, *sources)
+    sourceDrop.config(width=19)
+    sourceDrop.grid(row=5, column=2)
+
+    insertIncomeButton = Button(incomeWindow, text='Insert', command= lambda: insertIncomeSQL(incomeDateEntry, checkingVar.get(), savingsVar.get(), retirementVar.get(), sourceVar.get()))
+    insertIncomeButton.grid(row=5,column=3)
+
 #VIEW-RANGE WINDOW
-def newRangeWindow():
+def newExpenseViewWindow():
     rangeWindow = Toplevel(windowMain)
-    rangeWindow.title('Purchase Range')
+    rangeWindow.title('Expense Export')
     rangeWindow.geometry('600x400')
 
     #START DATE OF SEARCH
@@ -110,46 +163,125 @@ def newRangeWindow():
     categoryDrop.grid(row=3, column=2)
 
     #EXECUTE RANGE SELECTION BUTTON
-    executeRange = Button(rangeWindow, text='Execute', command= lambda:selectRangeSQL(lDate, rDate, lPriceVar.get(), rPriceVar.get(), categoryVarRange.get(), csvVar.get()))
+    executeRange = Button(rangeWindow, text='Execute', command= lambda:viewExpenseRangeSQL(lDate, rDate, lPriceVar.get(), rPriceVar.get(), categoryVarRange.get(), csvVar.get()))
     executeRange.grid(row=4, column=4)
 
-    executeWideOpen = Button(rangeWindow, text='Wide Open', command=lambda:SqlWideOpen(csvVar.get()))
+    executeWideOpen = Button(rangeWindow, text='Wide Open', command=lambda:expenseSQLWideOpen(csvVar.get()))
     executeWideOpen.grid(row=5,column=4)
 
     #CSV NAME
     csvVar = StringVar()
-    csvLabel = Label(rangeWindow, text='*CSV file name:')
+    csvLabel = Label(rangeWindow, text='*File name:')
     csvName = Entry(rangeWindow, textvariable=csvVar, background='white', foreground='black')
     csvLabel.grid(column=1, row=4)
     csvName.grid(column=2, row=4)
 
-def newDeleteWindow():
-    deleteWindow = Toplevel(windowMain)
-    deleteWindow.title('Delete Entry')
-    deleteWindow.geometry('600x400')
+def newViewIncomeWindow():
+    viewIncomeWindow = Toplevel(windowMain)
+    viewIncomeWindow.title('Income Export')
+    viewIncomeWindow.geometry('300x100')
+
+    csvLabel = Label(viewIncomeWindow, text='*File name:')
+    csvLabel.grid(row=1, column=1)
+
+    csvVar = StringVar()
+    csvEntry = Entry(viewIncomeWindow, textvariable=csvVar, background='white', foreground='black')
+    csvEntry.grid(row=1, column=2)
+
+    executeIncomeExportButton = Button(viewIncomeWindow, text='Execute', command= lambda: viewSQLIncome(csvVar.get()))
+    executeIncomeExportButton.grid(row=3,column=2)
+
+def newDeleteIncomeWindow():
+    deleteIncomeWindow = Toplevel(windowMain)
+    deleteIncomeWindow.title('Delete Income Entry')
+    deleteIncomeWindow.geometry('600x400')
 
     #DATE TO DELETE
-    dateText = Label(deleteWindow, text='Enter date of purchase:')
+    dateText = Label(deleteIncomeWindow, text='Enter date of income')
     dateText.grid(row=1, column=1)
-    Bdate = DateEntry(deleteWindow,date_pattern='yyyy-mm-dd', foreground='white', background='white', width=19)
+    Bdate = DateEntry(deleteIncomeWindow,date_pattern='yyyy-mm-dd', foreground='white', background='white', width=19)
+    Bdate.grid(column=2, row=1)
+
+    #CHECKING AMOUNT TO DELETE
+    checkingLabel = Label(deleteIncomeWindow, text="Enter checking amount:")
+    checkingLabel.grid(row=2, column=1)
+    checkingVar = StringVar()
+    checking = Entry(deleteIncomeWindow, textvariable=checkingVar, background='white', foreground='black')
+    checking.grid(row=2,column=2)
+
+    #SAVINGS AMOUNT TO DELETE
+    savingsLabel = Label(deleteIncomeWindow, text="Enter savings amount:")
+    savingsLabel.grid(row=3, column=1)
+    savingsVar = StringVar()
+    savings = Entry(deleteIncomeWindow, textvariable=savingsVar, background='white', foreground='black')
+    savings.grid(row=3,column=2)
+
+    #RETIREMENT AMOUNT TO DELETE
+    retirementLabel = Label(deleteIncomeWindow, text="Enter retirement amount:")
+    retirementLabel.grid(row=4, column=1)
+    retirementVar = StringVar()
+    retirement = Entry(deleteIncomeWindow, textvariable=retirementVar, background='white', foreground='black')
+    retirement.grid(row=4,column=2)
+
+    #SOURCE TO DELETE
+    sourceLabel = Label(deleteIncomeWindow, text='Enter source of income:')
+    sourceLabel.grid(row=5, column=1)
+
+    sources = [
+    'Qorvo',
+    'Other'
+    ]
+    sourceVar = StringVar()
+    sourceDrop = OptionMenu(deleteIncomeWindow, sourceVar, *sources)
+    sourceDrop.config(width=19)
+    sourceDrop.grid(row=5, column=2)
+
+    #DELETE INCOME BUTTON
+    deleteIncomeButton = Button(deleteIncomeWindow, text='Delete', command=lambda: newVerifyDeleteIncomeWindow(deleteIncomeWindow, Bdate, checkingVar, savingsVar, retirementVar, sourceVar))
+    deleteIncomeButton.grid(row=5, column=3)
+
+def newVerifyDeleteIncomeWindow(window, date : Calendar, checking, savings, retirement, source):
+    verifyDeleteIncomeWindow = Toplevel(window)
+    verifyDeleteIncomeWindow.title('Verify Deletion')
+    verifyDeleteIncomeWindow.geometry('350x150')
+
+    total = int(checking.get()) + int(savings.get()) + int(retirement.get())
+    verifyQuestion = Label(verifyDeleteIncomeWindow,text=f"Do you wish to delete income entry of {total} reported on {date.get_date()}?")
+    verifyQuestion.grid(row=1,column=1)
+
+    yesButton = Button(verifyDeleteIncomeWindow,text='YES', command=lambda: sqlIncomeDelete(date, checking, savings, retirement, source))
+    yesButton.grid(row=2, column=1)
+
+    noButton = Button(verifyDeleteIncomeWindow,text='NO', command= lambda : verifyDeleteIncomeWindow.destroy(), justify='left')
+    noButton.grid(row=2, column=2)  
+
+def newDeleteExpenseWindow():
+    deleteExpenseWindow = Toplevel(windowMain)
+    deleteExpenseWindow.title('Delete Expense Entry')
+    deleteExpenseWindow.geometry('600x400')
+
+    #DATE TO DELETE
+    dateText = Label(deleteExpenseWindow, text='Enter date of purchase:')
+    dateText.grid(row=1, column=1)
+    Bdate = DateEntry(deleteExpenseWindow,date_pattern='yyyy-mm-dd', foreground='white', background='white', width=19)
     Bdate.grid(column=2, row=1)
 
     #PRICE TO DELETE
-    priceText = Label(deleteWindow, text="Enter price of item/service:")
+    priceText = Label(deleteExpenseWindow, text="Enter price of item/service:")
     priceText.grid(row=2, column=1)
     priceVar = StringVar()
-    price = Entry(deleteWindow, textvariable=priceVar, background='white', foreground='black')
+    price = Entry(deleteExpenseWindow, textvariable=priceVar, background='white', foreground='black')
     price.grid(row=2,column=2)
 
     #PLACE OF PURCHASE TO DELETE
-    whereText = Label(deleteWindow, text="Enter place of purchase:")
+    whereText = Label(deleteExpenseWindow, text="Enter place of purchase:")
     whereText.grid(row=3, column=1)
     whereVar = StringVar()
-    where = Entry(deleteWindow, textvariable=whereVar, background='white', foreground='black')
+    where = Entry(deleteExpenseWindow, textvariable=whereVar, background='white', foreground='black')
     where.grid(row=3, column=2)
 
     #CATEGORY OF PURCHASE TO DELETE
-    categoriesText = Label(deleteWindow, text='Enter category of purchase:')
+    categoriesText = Label(deleteExpenseWindow, text='Enter category of purchase:')
     categoriesText.grid(row=4, column=1)
     categories = [
         'Housing',
@@ -160,44 +292,51 @@ def newDeleteWindow():
         'Misc'
         ]
     categoryVar = StringVar()
-    categoryDrop = OptionMenu(deleteWindow, categoryVar, *categories)
+    categoryDrop = OptionMenu(deleteExpenseWindow, categoryVar, *categories)
     categoryDrop.config(width=19)
     categoryDrop.grid(row=4, column=2)
 
     #DELETE DATA BUTTON
-    deleteGo = Button(deleteWindow,text='Delete', command = lambda: verifyDeleteWindow(deleteWindow, Bdate.get_date(), priceVar, whereVar, categoryVar))
+    deleteGo = Button(deleteExpenseWindow,text='Delete', command = lambda: newVerifyDeleteExpenseWindow(deleteExpenseWindow, Bdate.get_date(), priceVar, whereVar, categoryVar))
     deleteGo.grid(row=6, column=3)
 
+def newVerifyDeleteExpenseWindow(topWindow, when : Calendar, price : StringVar, where : StringVar, category : StringVar):
+    verifyDeleteExpenseWindow = Toplevel(topWindow)
+    verifyDeleteExpenseWindow.title('Verify Deletion')
+    verifyDeleteExpenseWindow.geometry('350x150')
 
-def verifyDeleteWindow(topWindow, when : Calendar, price : StringVar, where : StringVar, category : StringVar):
-    verifyDelete = Toplevel(topWindow)
-    verifyDelete.title('Verify Deletion')
-    verifyDelete.geometry('350x150')
-
-    verifyQuestion = Label(verifyDelete,text=f'Do you wish to delete this entry of ${price.get()} spent at {where.get()} on {when}?', justify='center', wraplength=260)
+    verifyQuestion = Label(verifyDeleteExpenseWindow,text=f'Do you wish to delete this entry of ${price.get()} spent at {where.get()} on {when}?', justify='center', wraplength=260)
     verifyQuestion.grid(row=1,column=1)
 
-    yesButton = Button(verifyDelete,text='YES', command=lambda: (sqlDelete(when, price.get(), where.get(), category.get())), justify='left')
+    yesButton = Button(verifyDeleteExpenseWindow,text='YES', command=lambda: (sqlExpenseDelete(when, price.get(), where.get(), category.get())), justify='left')
     yesButton.grid(row=2, column=1)
 
-    noButton = Button(verifyDelete,text='NO', command= lambda : verifyDelete.destroy(), justify='left')
+    noButton = Button(verifyDeleteExpenseWindow,text='NO', command= lambda : verifyDeleteExpenseWindow.destroy(), justify='left')
     noButton.grid(row=2, column=2)
 
 
-
+#INCOME EXPENSE REPORT WINDOW
     
 
 #MENU BAR TKINTER
 mainMenu = Menu(windowMain)
-findMenu = Menu(mainMenu)
-optionMenu = Menu(mainMenu)
-mainMenu.add_cascade(label='Find', menu=findMenu)
-findMenu.add_command(label='Range', command=newRangeWindow)
-mainMenu.add_cascade(label='Options', menu=optionMenu)
-optionMenu.add_separator()
-optionMenu.add_command(label='DELETE', command=newDeleteWindow)
+exportMenu = Menu(mainMenu)
+deleteMenu = Menu(mainMenu)
+insertMenu = Menu(mainMenu)
+reportMenu = Menu(mainMenu)
 
-
+mainMenu.add_cascade(label='Export', menu=exportMenu)
+exportMenu.add_command(label='Expense', command=newExpenseViewWindow)
+exportMenu.add_separator()
+exportMenu.add_command(label='Income', command=newViewIncomeWindow)
+mainMenu.add_cascade(label='Delete', menu=deleteMenu)
+deleteMenu.add_separator()
+deleteMenu.add_command(label='Expense', command=newDeleteExpenseWindow)
+deleteMenu.add_separator()
+deleteMenu.add_command(label='Income', command=newDeleteIncomeWindow)
+mainMenu.add_cascade(label='Insert', menu=insertMenu)
+insertMenu.add_command(label='Income', command=newIncomeWindow)
+mainMenu.add_cascade(label='Report', menu=reportMenu)
 
 
 windowMain.config(menu=mainMenu)
@@ -206,7 +345,7 @@ windowMain.config(menu=mainMenu)
 #--------SQL METHODS----------#
 
 #INSERTS PURCHASES INTO DB -------METHOD--------
-def insertSQL(bdate : Calendar, amount , Where , Category):
+def insertExpenseSQL(bdate : Calendar, amount , Where , Category):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
@@ -215,8 +354,35 @@ def insertSQL(bdate : Calendar, amount , Where , Category):
             print(result)
         cxn.commit()
 
-#SEARCHES SQL DB VIA RANGE -----METHOD--------
-def selectRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, category, xlName):
+#INSERT INCOME TO SQL
+def insertIncomeSQL(date : Calendar, checking, savings, retirement, source):
+    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
+    with cxn:
+        with cxn.cursor() as cursor:
+            cursor.execute(f"INSERT INTO income VALUES ('{date.get_date()}', {checking}, {savings}, {retirement}, '{source}')")
+            result = cursor.fetchone()
+            print(result)
+        cxn.commit()
+
+def viewSQLIncome(xlName):
+    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
+    with cxn:
+        with cxn.cursor() as cursor:
+            query = "SELECT * FROM Budget.income;"
+            df = pd.read_sql(query, cxn)
+        cxn.commit()
+    df.to_excel(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
+    workbook = openpyxl.load_workbook(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
+    sheet = workbook.active
+    #CONFIGURE DATE COLUMN IN EXCEL
+    dateCol = sheet.column_dimensions['B']
+    dateCol.number_format = 'YYYY MM DD'
+
+    workbook.save(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
+
+
+#SEARCHES SQL EXPENSE TABLE VIA RANGE -----METHOD--------
+def viewExpenseRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, category, xlName):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
@@ -269,7 +435,7 @@ def selectRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, category,
     workbook.save(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {ldate.get_date()} {rdate.get_date()}.xlsx")
 
 #FOR RANGE PAGE - WIDE OPEN ----- METHOD ----------
-def SqlWideOpen(xlName):
+def expenseSQLWideOpen(xlName):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password= os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
@@ -304,7 +470,8 @@ def SqlWideOpen(xlName):
 
     workbook.save(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
     
-def sqlDelete(bdate : Calendar, amount , Where , Category):
+
+def sqlExpenseDelete(bdate : Calendar, amount , Where , Category):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
@@ -313,8 +480,19 @@ def sqlDelete(bdate : Calendar, amount , Where , Category):
             print(result)
         cxn.commit()
 
+def sqlIncomeDelete(date : Calendar, checking, savings, retirement, source):
+    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
+    with cxn:
+        with cxn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'")
+            result = cursor.fetchone()
+            print(result)
+        cxn.commit()
+
+    
 
 
+#INCOME EXPENSE SQL STATEMENT TO EXCEL FILE - ANALYSIS
 
 
 
