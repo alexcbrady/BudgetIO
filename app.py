@@ -8,6 +8,8 @@ from datetime import date
 import openpyxl
 from openpyxl.chart import PieChart, Reference
 import time
+from openpyxl.styles.borders import Border, Side
+from openpyxl.chart.label import DataLabelList
 
 load_dotenv()
 
@@ -55,7 +57,7 @@ categoryDrop.grid(row=4, column=2)
 
 #INSERT DATA BUTTON
 insertGo = Button(windowMain,text='Insert', command=(lambda: (insertSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get()))))
-insertGo.grid(row=6, column=2)
+insertGo.grid(row=4, column=3)
 
 
 #VIEW-RANGE WINDOW
@@ -121,14 +123,80 @@ def newRangeWindow():
     csvLabel.grid(column=1, row=4)
     csvName.grid(column=2, row=4)
 
+def newDeleteWindow():
+    deleteWindow = Toplevel(windowMain)
+    deleteWindow.title('Delete Entry')
+    deleteWindow.geometry('600x400')
+
+    #DATE TO DELETE
+    dateText = Label(deleteWindow, text='Enter date of purchase:')
+    dateText.grid(row=1, column=1)
+    Bdate = DateEntry(deleteWindow,date_pattern='yyyy-mm-dd', foreground='white', background='white', width=19)
+    Bdate.grid(column=2, row=1)
+
+    #PRICE TO DELETE
+    priceText = Label(deleteWindow, text="Enter price of item/service:")
+    priceText.grid(row=2, column=1)
+    priceVar = StringVar()
+    price = Entry(deleteWindow, textvariable=priceVar, background='white', foreground='black')
+    price.grid(row=2,column=2)
+
+    #PLACE OF PURCHASE TO DELETE
+    whereText = Label(deleteWindow, text="Enter place of purchase:")
+    whereText.grid(row=3, column=1)
+    whereVar = StringVar()
+    where = Entry(deleteWindow, textvariable=whereVar, background='white', foreground='black')
+    where.grid(row=3, column=2)
+
+    #CATEGORY OF PURCHASE TO DELETE
+    categoriesText = Label(deleteWindow, text='Enter category of purchase:')
+    categoriesText.grid(row=4, column=1)
+    categories = [
+        'Housing',
+        'Utilities',
+        'Grocery',
+        'Phone',
+        'Fun',
+        'Misc'
+        ]
+    categoryVar = StringVar()
+    categoryDrop = OptionMenu(deleteWindow, categoryVar, *categories)
+    categoryDrop.config(width=19)
+    categoryDrop.grid(row=4, column=2)
+
+    #DELETE DATA BUTTON
+    deleteGo = Button(deleteWindow,text='Delete', command = lambda: verifyDeleteWindow(deleteWindow, Bdate.get_date(), priceVar, whereVar, categoryVar))
+    deleteGo.grid(row=6, column=3)
+
+
+def verifyDeleteWindow(topWindow, when : Calendar, price : StringVar, where : StringVar, category : StringVar):
+    verifyDelete = Toplevel(topWindow)
+    verifyDelete.title('Verify Deletion')
+    verifyDelete.geometry('350x150')
+
+    verifyQuestion = Label(verifyDelete,text=f'Do you wish to delete this entry of ${price.get()} spent at {where.get()} on {when}?', justify='center', wraplength=260)
+    verifyQuestion.grid(row=1,column=1)
+
+    yesButton = Button(verifyDelete,text='YES', command=lambda: (sqlDelete(when, price.get(), where.get(), category.get())), justify='left')
+    yesButton.grid(row=2, column=1)
+
+    noButton = Button(verifyDelete,text='NO', command= lambda : verifyDelete.destroy(), justify='left')
+    noButton.grid(row=2, column=2)
+
+
+
+    
 
 #MENU BAR TKINTER
 mainMenu = Menu(windowMain)
-appmenu = Menu(mainMenu)
-mainMenu.add_cascade(label='View', menu=appmenu)
-appmenu.add_command(label='Range', command=newRangeWindow)
-appmenu.add_command(label='Specific')
-mainMenu.add_cascade(label='Export', menu=appmenu)
+findMenu = Menu(mainMenu)
+optionMenu = Menu(mainMenu)
+mainMenu.add_cascade(label='Find', menu=findMenu)
+findMenu.add_command(label='Range', command=newRangeWindow)
+mainMenu.add_cascade(label='Options', menu=optionMenu)
+optionMenu.add_separator()
+optionMenu.add_command(label='DELETE', command=newDeleteWindow)
+
 
 
 
@@ -138,7 +206,7 @@ windowMain.config(menu=mainMenu)
 #--------SQL METHODS----------#
 
 #INSERTS PURCHASES INTO DB -------METHOD--------
-def insertSQL(bdate : Calendar, amount , Where , Category ):
+def insertSQL(bdate : Calendar, amount , Where , Category):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
@@ -191,11 +259,18 @@ def selectRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, category,
     dateCol = sheet.column_dimensions['B']
     dateCol.number_format = 'YYYY MM DD'
 
+    #ADDING SUMMATION CELL TO PRICE COLUMN
+    sheet[f'C{len(df.index)+2}'] = f'=SUM(C2:C{len(df.index)+1})'
+    sheet[f'A{len(df.index)+2}'] = 'SUM'
+    #BORDER FOR SUMMATION CELL
+    thickBorder = Border(top = Side(style = 'thick'))
+    sheet.cell(row = len(df.index)+2, column = 3).border = thickBorder
+
     workbook.save(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {ldate.get_date()} {rdate.get_date()}.xlsx")
 
 #FOR RANGE PAGE - WIDE OPEN ----- METHOD ----------
 def SqlWideOpen(xlName):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
+    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password= os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
         with cxn.cursor() as cursor:
             query = "SELECT * FROM Budget.expenses;"
@@ -215,15 +290,28 @@ def SqlWideOpen(xlName):
     chart.title = 'Categorical Spending'
     sheet.add_chart(chart, 'G2')
     
+    
     #FORMATTING DATE COLUMN
     dateCol = sheet.column_dimensions['B']
     dateCol.number_format = 'YYYY MM DD'
 
+    #ADDING SUMMATION CELL TO PRICE COLUMN
+    sheet[f'C{len(df.index)+2}'] = f'=SUM(C2:C{len(df.index)+1})'
+    sheet[f'A{len(df.index)+2}'] = 'SUM'
+    #BORDER FOR SUMMATION CELL
+    thickBorder = Border(top = Side(style = 'thick'))
+    sheet.cell(row = len(df.index)+2, column = 3).border = thickBorder
+
     workbook.save(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
-
-
-
-
+    
+def sqlDelete(bdate : Calendar, amount , Where , Category):
+    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
+    with cxn:
+        with cxn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'")
+            result = cursor.fetchone()
+            print(result)
+        cxn.commit()
 
 
 
