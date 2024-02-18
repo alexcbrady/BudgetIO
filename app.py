@@ -10,6 +10,7 @@ from openpyxl.chart import PieChart, Reference
 import time
 from openpyxl.styles.borders import Border, Side
 from openpyxl.chart.label import DataLabelList
+from sqlalchemy import create_engine
 
 load_dotenv()
 
@@ -316,7 +317,53 @@ def newVerifyDeleteExpenseWindow(topWindow, when : Calendar, price : StringVar, 
 
 
 #INCOME EXPENSE REPORT WINDOW
-    
+def newExpenseToIncomeWindow():
+    expenseToIncomeWindow = Toplevel(windowMain)   
+    expenseToIncomeWindow.title('Expense To Income Report')
+    expenseToIncomeWindow.geometry('600x400')
+
+    #FROM   
+    lDateLable = Label(expenseToIncomeWindow, text='From:')
+    lDateLable.grid(row=1, column=1)
+
+    lDate = DateEntry(expenseToIncomeWindow, date_pattern='yyyy-mm-dd')
+    lDate.grid(row=1, column=2)
+
+    #TO
+    rDateLabel = Label(expenseToIncomeWindow, text='To:')
+    rDateLabel.grid(row=1, column=3)
+
+    rDate = DateEntry(expenseToIncomeWindow, date_pattern='yyyy-mm-dd')
+    rDate.grid(row=1, column=4)
+
+    #SHOW EXPENSE TOTAL LABEL
+    expenseLabel = Label(expenseToIncomeWindow, text='Total expenses:')
+    expenseLabel.grid(row=3, column=1)
+    expenseTotal = Label(expenseToIncomeWindow, text='')
+    expenseTotal.grid(row=3, column=2)
+
+    #SHOW INCOME TOTAL LABLE
+    incomeLabel = Label(expenseToIncomeWindow, text='Total Income:')
+    incomeLabel.grid(row=4, column=1)
+    incomeTotal = Label(expenseToIncomeWindow, text='')
+    incomeTotal.grid(row=4, column=2)
+
+    #SHOW INCOME MINUS EXPENSE LABEL
+    netLabel = Label(expenseToIncomeWindow, text='Net:')
+    netLabel.grid(row=5, column=1)
+    net = Label(expenseToIncomeWindow, text='')
+    net.grid(row=5, column=2)
+
+    #TODO CONFIGURE CHECKBOX EXCEL OPTION FOR REPORTS
+    #EXCEL CHECKBOX OPTION
+    createExcelVar = IntVar()
+    createExcelCheckBox = Checkbutton(expenseToIncomeWindow, variable=createExcelVar, text='Create Excel')
+    createExcelCheckBox.grid(row=2, column=5)
+
+    #EXECUTE EXPENSE TO INCOME REPORT
+    executeExpenseToIncomeReportButton = Button(expenseToIncomeWindow, text='Execute', command= lambda: viewExpenseToIncomeReport(lDate, rDate, incomeTotal, expenseTotal, net)) #PASS TOTAL LABELS IN FUNC FOR UPDATE
+    executeExpenseToIncomeReportButton.grid(row=3, column=5)
+
 
 #MENU BAR TKINTER
 mainMenu = Menu(windowMain)
@@ -337,6 +384,7 @@ deleteMenu.add_command(label='Income', command=newDeleteIncomeWindow)
 mainMenu.add_cascade(label='Insert', menu=insertMenu)
 insertMenu.add_command(label='Income', command=newIncomeWindow)
 mainMenu.add_cascade(label='Report', menu=reportMenu)
+reportMenu.add_command(label='Expense to Income', command=newExpenseToIncomeWindow)
 
 
 windowMain.config(menu=mainMenu)
@@ -348,29 +396,23 @@ windowMain.config(menu=mainMenu)
 def insertExpenseSQL(bdate : Calendar, amount , Where , Category):
     cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
     with cxn:
-        with cxn.cursor() as cursor:
-            cursor.execute(f"INSERT INTO expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")
-            result = cursor.fetchone()
-            print(result)
-        cxn.commit()
+        with cxn.connect() as con:
+            con.execute(f"INSERT INTO expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")
+            
 
 #INSERT INCOME TO SQL
 def insertIncomeSQL(date : Calendar, checking, savings, retirement, source):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
-            cursor.execute(f"INSERT INTO income VALUES ('{date.get_date()}', {checking}, {savings}, {retirement}, '{source}')")
-            result = cursor.fetchone()
-            print(result)
-        cxn.commit()
-
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+            con.execute(f"INSERT INTO income VALUES ('{date.get_date()}', {int(checking)}, {int(savings)}, {int(retirement)}, '{source}')")
+            
+    
 def viewSQLIncome(xlName):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")   
+    with cxn.connect() as con:
             query = "SELECT * FROM Budget.income;"
             df = pd.read_sql(query, cxn)
-        cxn.commit()
+        
     df.to_excel(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
     workbook = openpyxl.load_workbook(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
     sheet = workbook.active
@@ -383,31 +425,30 @@ def viewSQLIncome(xlName):
 
 #SEARCHES SQL EXPENSE TABLE VIA RANGE -----METHOD--------
 def viewExpenseRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, category, xlName):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+   
 
-            #RANGE BY DATE, CATEGORY, AND PRICE
-            if (ldate != '' and rdate != '') and lprice != '' and rprice !='' and category != '':
-                query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND category = '{category}' AND price BETWEEN {lprice} AND {rprice}"
-                df = pd.read_sql(query, cxn)
-                
-            #RANGE BY DATE AND CATEGORY
-            if (ldate != '' and rdate != '') and lprice == '' and rprice == '' and category != '':
-                query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND category = '{category}';"
-                df = pd.read_sql(query, cxn)
+    #RANGE BY DATE, CATEGORY, AND PRICE
+    if (ldate != '' and rdate != '') and lprice != '' and rprice !='' and category != '':
+        query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND category = '{category}' AND price BETWEEN {lprice} AND {rprice}"
+        df = pd.read_sql(query, cxn)
+        
+    #RANGE BY DATE AND CATEGORY
+    if (ldate != '' and rdate != '') and lprice == '' and rprice == '' and category != '':
+        query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND category = '{category}';"
+        df = pd.read_sql(query, cxn)
 
-            #RANGE BY DATE AND PRICE
-            if (ldate != '' and rdate != '') and lprice != '' and rprice != '' and category == '':
-                query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND price BETWEEN {lprice} AND {rprice};"
-                df = pd.read_sql(query, cxn)
+    #RANGE BY DATE AND PRICE
+    if (ldate != '' and rdate != '') and lprice != '' and rprice != '' and category == '':
+        query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}' AND price BETWEEN {lprice} AND {rprice};"
+        df = pd.read_sql(query, cxn)
 
-            #RANGE ONLY BY DATE
-            if (ldate != '' and rdate != '') and lprice == '' and rprice == '' and category == '':
-                query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}';"
-                df = pd.read_sql(query, cxn)
+    #RANGE ONLY BY DATE
+    if (ldate != '' and rdate != '') and lprice == '' and rprice == '' and category == '':
+        query = f"SELECT Bdate, price, location, category FROM budget.expenses WHERE bdate BETWEEN '{ldate.get_date()}' AND '{rdate.get_date()}';"
+        df = pd.read_sql(query, cxn)
     
-        cxn.commit()
+        
     df.to_excel(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {ldate.get_date()} {rdate.get_date()}.xlsx")
 
     #CREATING PIE CHART IN EXCEL
@@ -436,12 +477,12 @@ def viewExpenseRangeSQL(ldate : Calendar, rdate : Calendar, lprice, rprice, cate
 
 #FOR RANGE PAGE - WIDE OPEN ----- METHOD ----------
 def expenseSQLWideOpen(xlName):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password= os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
-            query = "SELECT * FROM Budget.expenses;"
-            df = pd.read_sql(query, cxn)
-        cxn.commit()
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    
+    query = "SELECT * FROM Budget.expenses;"
+    df = pd.read_sql(query, cxn)
+    
+        
     df.to_excel(f"{os.getenv('BUDGETIO_OUTPUT_PATH')}{xlName} {date.today()}.xlsx")
     
     
@@ -472,28 +513,55 @@ def expenseSQLWideOpen(xlName):
     
 
 def sqlExpenseDelete(bdate : Calendar, amount , Where , Category):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
-            cursor.execute(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'")
-            result = cursor.fetchone()
-            print(result)
-        cxn.commit()
+    cxn = create_engine(url=f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+        con.execute(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'")
+    
+    
+        
 
 def sqlIncomeDelete(date : Calendar, checking, savings, retirement, source):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.cursor() as cursor:
-            cursor.execute(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'")
-            result = cursor.fetchone()
-            print(result)
-        cxn.commit()
+    
+    cxn = create_engine(url=f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+        con.execute(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'")
+        
+            
 
     
 
 
 #INCOME EXPENSE SQL STATEMENT TO EXCEL FILE - ANALYSIS
+def viewExpenseToIncomeReport(lDate : Calendar, rDate : Calendar, incomeLabel : Label, expenseLabel : Label, netLabel : Label):
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+            
+        incomeQuery = f"SELECT savings, checking FROM budget.income WHERE idate BETWEEN '{lDate.get_date()}' AND '{rDate.get_date()}'"
+        incomeDF = pd.read_sql(incomeQuery, cxn)
+        print(incomeDF)
+        incomeTotal = sum(incomeDF['savings'])
+        
+        incomeLabel.config(text=f'{incomeTotal}')
+        incomeLabel.update()
 
+        expenseQuery = f"SELECT price FROM budget.expenses WHERE Bdate BETWEEN '{lDate.get_date()}' AND '{rDate.get_date()}'"
+        expenseDF = pd.read_sql(expenseQuery, cxn)
+        expenseTotal = expenseDF['price'].sum()
+        expenseLabel.config(text=f'{expenseTotal}')
+        expenseLabel.update()
+
+        
+        incomeMinusExpense = round(incomeTotal - expenseTotal, 2)
+
+        if incomeMinusExpense < 0:
+            netColor = 'red'
+        if incomeMinusExpense >= 0:
+            netColor = 'green'
+
+        netLabel.config(text=f'{str(incomeMinusExpense)}', foreground=netColor)
+        netLabel.update()
+
+        
 
 
 
