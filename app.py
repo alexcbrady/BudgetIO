@@ -4,13 +4,16 @@ import pymysql.cursors
 from tkinter import *
 from tkcalendar import Calendar, DateEntry
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta
 import openpyxl
 from openpyxl.chart import PieChart, Reference
 import time
 from openpyxl.styles.borders import Border, Side
 from openpyxl.chart.label import DataLabelList
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from PIL import ImageTk, Image
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 load_dotenv()
 
@@ -60,6 +63,11 @@ categoryDrop.grid(row=4, column=2)
 insertGo = Button(windowMain,text='Insert', command=(lambda: (insertExpenseSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get()))))
 insertGo.grid(row=4, column=3)
 
+logoImage = Image.open("/Users/alexbrady/Library/Mobile Documents/com~apple~CloudDocs/Budget Repo/Budget/Images/BudgetIOLogo.png")
+logoImage = logoImage.resize((300,250))
+convertLogoImage = ImageTk.PhotoImage(logoImage)
+logoImageLabel = Label(windowMain, image=convertLogoImage, justify='left')
+logoImageLabel.grid(row=5, column=1)
 
 #INSERT INCOME WINDOW
 def newIncomeWindow():
@@ -385,6 +393,7 @@ mainMenu.add_cascade(label='Insert', menu=insertMenu)
 insertMenu.add_command(label='Income', command=newIncomeWindow)
 mainMenu.add_cascade(label='Report', menu=reportMenu)
 reportMenu.add_command(label='Expense to Income', command=newExpenseToIncomeWindow)
+reportMenu.add_command(label='Weekly Spending Report', command= lambda: weeklySpendingReport())
 
 
 windowMain.config(menu=mainMenu)
@@ -394,18 +403,17 @@ windowMain.config(menu=mainMenu)
 
 #INSERTS PURCHASES INTO DB -------METHOD--------
 def insertExpenseSQL(bdate : Calendar, amount , Where , Category):
-    cxn = pymysql.connect(host= os.getenv('HOST'), user= 'root', password=os.getenv('PASSWORD'), database='budget',cursorclass=pymysql.cursors.DictCursor )
-    with cxn:
-        with cxn.connect() as con:
-            con.execute(f"INSERT INTO expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")
-            
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+        con.execute(text((f"INSERT INTO budget.expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")))
+        con.commit()
 
 #INSERT INCOME TO SQL
 def insertIncomeSQL(date : Calendar, checking, savings, retirement, source):
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
     with cxn.connect() as con:
-            con.execute(f"INSERT INTO income VALUES ('{date.get_date()}', {int(checking)}, {int(savings)}, {int(retirement)}, '{source}')")
-            
+            con.execute(text(f"INSERT INTO budget.income VALUES ('{date.get_date()}', {int(checking)}, {int(savings)}, {int(retirement)}, '{source}')"))
+    con.commit()
     
 def viewSQLIncome(xlName):
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")   
@@ -513,19 +521,19 @@ def expenseSQLWideOpen(xlName):
     
 
 def sqlExpenseDelete(bdate : Calendar, amount , Where , Category):
-    cxn = create_engine(url=f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
     with cxn.connect() as con:
-        con.execute(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'")
-    
+        con.execute(text(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'"))
+    con.commit()
     
         
 
 def sqlIncomeDelete(date : Calendar, checking, savings, retirement, source):
     
-    cxn = create_engine(url=f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
     with cxn.connect() as con:
-        con.execute(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'")
-        
+        con.execute(text(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'"))
+    con.commit() 
             
 
     
@@ -561,6 +569,30 @@ def viewExpenseToIncomeReport(lDate : Calendar, rDate : Calendar, incomeLabel : 
         netLabel.config(text=f'{str(incomeMinusExpense)}', foreground=netColor)
         netLabel.update()
 
+        
+def weeklySpendingReport():
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+        
+        spendingQuery = f"SELECT category, price FROM budget.expenses WHERE Bdate BETWEEN '{date.today() - timedelta(days=7)}' AND '{date.today()}' ORDER BY Bdate"
+        spendingDF = pd.read_sql(spendingQuery, cxn)
+        
+
+        #GRAPHING TO MATPLOTLIB WINDOW
+
+        #DYNAMICALLY GETTING NUMBER OF CATEGOREIS FOR EXPLODE
+        uniqueExpenseCategories = len(pd.unique(spendingDF['category']))
+        explode = []
+        i = 0
+        while i < uniqueExpenseCategories:
+            explode.append(0.1)
+            i +=1
+
+        plt.pie(spendingDF['price'], labels=spendingDF['category'], shadow = True, autopct = '%1.1f%%', explode=explode)
+        plt.legend()
+        plt.title(f'Spending Report {date.today() - timedelta(days=7)} - {date.today()}')
+    
+        plt.show()
         
 
 
