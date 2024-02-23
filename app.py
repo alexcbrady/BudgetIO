@@ -12,6 +12,7 @@ from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
 from matplotlib.sankey import Sankey
 
+
 load_dotenv()
 
 #define tk window
@@ -660,6 +661,8 @@ def SankeyChart(lDate : Calendar, rDate : Calendar):
         totalSaving = incomeDF['savings'].sum()
         totalRetirement = incomeDF['retirement'].sum()
         totalTax = incomeDF['tax'].sum()
+        TotalUnrealized = totalRetirement + totalTax
+        totalRealized = totalIncome - TotalUnrealized
 
         expenseQuery = f"SELECT * FROM budget.expenses WHERE bdate BETWEEN '{lDate.get_date()}'AND '{rDate.get_date()}';"
         expenseDF = pd.read_sql(expenseQuery, cxn)
@@ -667,13 +670,12 @@ def SankeyChart(lDate : Calendar, rDate : Calendar):
     sankeyLabels = [
     'Income',
     'Housing',
-    'Utilities',
+    'Utilities', #3
     'Grocery',
     'Phone',
-    'Fun',
+    'Fun', #6
     'Misc',
-    'Home',
-    'tax'
+    'Home'
     ]
 
     categories = [
@@ -710,14 +712,16 @@ def SankeyChart(lDate : Calendar, rDate : Calendar):
         
         index = index + 1
 
-    Sankey(flows=[totalIncome, -categoryList[0], -categoryList[1],
-            -categoryList[2], -categoryList[3], -categoryList[4],
-            -categoryList[5], -categoryList[6], totalTax], labels=sankeyLabels, 
-            orientations=[0, 0, 0, 1, -1, 1, 1, 1, -1]).finish()
+    Sankey(flows=[-totalIncome, categoryList[0], categoryList[1],
+            categoryList[2], categoryList[3], categoryList[4],
+            categoryList[5], categoryList[6], totalTax], labels=sankeyLabels, 
+            orientations=[0, 1, -1, 0, 0, 0, 0, 0, 0], rotation=180).finish()
     
     plt.title(f'Sankey {lDate.get_date()} - {rDate.get_date()}')
     
-    plt.show()
+    plt.show() 
+
+    
 
 
 windowMain.mainloop()
