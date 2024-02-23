@@ -1,19 +1,16 @@
 from dotenv import load_dotenv
 import os
-import pymysql.cursors
 from tkinter import *
 from tkcalendar import Calendar, DateEntry
 import pandas as pd
 from datetime import date, timedelta
 import openpyxl
 from openpyxl.chart import PieChart, Reference
-import time
 from openpyxl.styles.borders import Border, Side
-from openpyxl.chart.label import DataLabelList
 from sqlalchemy import create_engine, text
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+from matplotlib.sankey import Sankey
 
 load_dotenv()
 
@@ -21,7 +18,6 @@ load_dotenv()
 windowMain = Tk()
 windowMain.title('BudgetIO')
 windowMain.geometry('600x400')
-
 
 #DATE INPUT
 dateText = Label(windowMain, text='Enter date of purchase:')
@@ -59,8 +55,13 @@ categoryDrop = OptionMenu(windowMain, categoryVar, *categories)
 categoryDrop.config(width=19)
 categoryDrop.grid(row=4, column=2)
 
+#SUCCESS LABEL TO SHOW AFTER INSERTION OF EXPENSE
+successLabelVar = StringVar()
+successLabel = Label(windowMain, text='')
+successLabel.grid(row=5, column=3)
+
 #INSERT DATA BUTTON
-insertGo = Button(windowMain,text='Insert', command=(lambda: (insertExpenseSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get()))))
+insertGo = Button(windowMain,text='Insert', command=(lambda: (insertExpenseSQL(Bdate, priceVar.get(), whereVar.get(), categoryVar.get(), successLabel))))
 insertGo.grid(row=4, column=3)
 
 logoImage = Image.open("/Users/alexbrady/Library/Mobile Documents/com~apple~CloudDocs/Budget Repo/Budget/Images/BudgetIOLogo.png")
@@ -69,8 +70,9 @@ convertLogoImage = ImageTk.PhotoImage(logoImage)
 logoImageLabel = Label(windowMain, image=convertLogoImage, justify='left')
 logoImageLabel.grid(row=5, column=1)
 
+
 #INSERT INCOME WINDOW
-def newIncomeWindow():
+def newInsertIncomeWindow():
     incomeWindow = Toplevel(windowMain)
     incomeWindow.title('Income')
     incomeWindow.geometry('600x400')
@@ -106,9 +108,26 @@ def newIncomeWindow():
     retirementEntry = Entry(incomeWindow, textvariable=retirementVar, background='white', foreground='black')
     retirementEntry.grid(row=4, column=2)
 
+    #TOTAL COMP AMOUNT
+    totalCompLabel = Label(incomeWindow, text='Enter total comp pre-tax:', background='white', foreground='black')
+    totalCompLabel.grid(row=5, column=1)
+
+    totalCompVar = StringVar()
+    totalComp = Entry(incomeWindow, textvariable=totalCompVar)
+    totalComp.grid(row=5, column=2)
+
+    #TAX AMOUNT
+    taxLabel = Label(incomeWindow, text='Enter tax amount:', background='white', foreground='black')
+    taxLabel.grid(row=6, column=1)
+
+    taxVar = StringVar()
+    tax = Entry(incomeWindow, textvariable=taxVar)
+    tax.grid(row=6, column=2)
+
+
     #SOURCE OF INCOME
     sourceLabel = Label(incomeWindow, text='Enter source of income:')
-    sourceLabel.grid(row=5, column=1)
+    sourceLabel.grid(row=7, column=1)
 
     sources = [
     'Qorvo',
@@ -117,10 +136,15 @@ def newIncomeWindow():
     sourceVar = StringVar()
     sourceDrop = OptionMenu(incomeWindow, sourceVar, *sources)
     sourceDrop.config(width=19)
-    sourceDrop.grid(row=5, column=2)
+    sourceDrop.grid(row=7, column=2)
 
-    insertIncomeButton = Button(incomeWindow, text='Insert', command= lambda: insertIncomeSQL(incomeDateEntry, checkingVar.get(), savingsVar.get(), retirementVar.get(), sourceVar.get()))
-    insertIncomeButton.grid(row=5,column=3)
+    successLabelVar = StringVar()
+    successLabel = Label(incomeWindow, text='')
+    successLabel.grid(row=7, column=3)
+
+
+    insertIncomeButton = Button(incomeWindow, text='Insert', command= lambda: insertIncomeSQL(incomeDateEntry, checkingVar.get(), savingsVar.get(), retirementVar.get(), sourceVar.get(), successLabel, totalCompVar.get(), taxVar.get()))
+    insertIncomeButton.grid(row=8,column=3)
 
 #VIEW-RANGE WINDOW
 def newExpenseViewWindow():
@@ -372,6 +396,24 @@ def newExpenseToIncomeWindow():
     executeExpenseToIncomeReportButton = Button(expenseToIncomeWindow, text='Execute', command= lambda: viewExpenseToIncomeReport(lDate, rDate, incomeTotal, expenseTotal, net)) #PASS TOTAL LABELS IN FUNC FOR UPDATE
     executeExpenseToIncomeReportButton.grid(row=3, column=5)
 
+def newSankeyReportWindow():
+    sankeyWindow = Toplevel(windowMain)
+    sankeyWindow.title('Sankey Diagram')
+    sankeyWindow.geometry('600x400')
+
+    lDateLabel = Label(sankeyWindow, text='From:')
+    lDateLabel.grid(row=1, column=1)
+    lDate = DateEntry(sankeyWindow, date_pattern='yyyy-mm-dd')
+    lDate.grid(row=1, column=2)
+
+    rDateLabel = Label(sankeyWindow, text='To:')
+    rDateLabel.grid(row=1, column=3)
+    rDate = DateEntry(sankeyWindow, date_pattern='yyyy-mm-dd')
+    rDate.grid(row=1, column=4)
+
+    sankeyChartExecuteButton = Button(sankeyWindow, text='Execute', command=lambda: SankeyChart(lDate, rDate))
+    sankeyChartExecuteButton.grid(row=2, column=4)
+
 
 #MENU BAR TKINTER
 mainMenu = Menu(windowMain)
@@ -390,11 +432,11 @@ deleteMenu.add_command(label='Expense', command=newDeleteExpenseWindow)
 deleteMenu.add_separator()
 deleteMenu.add_command(label='Income', command=newDeleteIncomeWindow)
 mainMenu.add_cascade(label='Insert', menu=insertMenu)
-insertMenu.add_command(label='Income', command=newIncomeWindow)
+insertMenu.add_command(label='Income', command=newInsertIncomeWindow)
 mainMenu.add_cascade(label='Report', menu=reportMenu)
 reportMenu.add_command(label='Expense to Income', command=newExpenseToIncomeWindow)
 reportMenu.add_command(label='Weekly Spending Report', command= lambda: weeklySpendingReport())
-
+reportMenu.add_command(label='Sankey', command=newSankeyReportWindow)
 
 windowMain.config(menu=mainMenu)
 
@@ -402,18 +444,31 @@ windowMain.config(menu=mainMenu)
 #--------SQL METHODS----------#
 
 #INSERTS PURCHASES INTO DB -------METHOD--------
-def insertExpenseSQL(bdate : Calendar, amount , Where , Category):
-    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
-    with cxn.connect() as con:
-        con.execute(text((f"INSERT INTO budget.expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")))
-        con.commit()
+def insertExpenseSQL(bdate : Calendar, amount , Where , Category, success : Label):
+    try:
+        cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+        with cxn.connect() as con:
+            con.execute(text((f"INSERT INTO budget.expenses VALUES ('{bdate.get_date()}', {amount}, '{Where}', '{Category}')")))
+            con.commit()
+        success.config(text='Success!', foreground='green')
+        success.update()
+    except:
+        success.config(text='Error!', foreground='red')
+        success.update()
+
 
 #INSERT INCOME TO SQL
-def insertIncomeSQL(date : Calendar, checking, savings, retirement, source):
-    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
-    with cxn.connect() as con:
-            con.execute(text(f"INSERT INTO budget.income VALUES ('{date.get_date()}', {int(checking)}, {int(savings)}, {int(retirement)}, '{source}')"))
-    con.commit()
+def insertIncomeSQL(date : Calendar, checking, savings, retirement, source, success : Label, totalComp, tax):
+    try:
+        cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+        with cxn.connect() as con:
+            con.execute(text(f"INSERT INTO budget.income VALUES ('{date.get_date()}', {int(checking)}, {int(savings)}, {int(retirement)}, '{source}', {int(totalComp)}, {int(tax)})"))
+            con.commit()
+        success.config(text='Success!', foreground='green')
+        success.update()
+    except:
+        success.config(text='Error!', foreground='red')
+        success.update()
     
 def viewSQLIncome(xlName):
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")   
@@ -524,7 +579,7 @@ def sqlExpenseDelete(bdate : Calendar, amount , Where , Category):
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
     with cxn.connect() as con:
         con.execute(text(f"DELETE FROM expenses WHERE bdate = '{bdate}' AND price = {amount} AND location = '{Where}' AND category ='{Category}'"))
-    con.commit()
+        con.commit()
     
         
 
@@ -533,7 +588,7 @@ def sqlIncomeDelete(date : Calendar, checking, savings, retirement, source):
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
     with cxn.connect() as con:
         con.execute(text(f"DELETE FROM income WHERE idate = '{date.get_date()}' AND checking = {checking.get()} AND savings = {savings.get()} AND retirement ={retirement.get()} AND source = '{source.get()}'"))
-    con.commit() 
+        con.commit() 
             
 
     
@@ -576,8 +631,7 @@ def weeklySpendingReport():
         
         spendingQuery = f"SELECT category, price FROM budget.expenses WHERE Bdate BETWEEN '{date.today() - timedelta(days=7)}' AND '{date.today()}' ORDER BY Bdate"
         spendingDF = pd.read_sql(spendingQuery, cxn)
-        
-
+    
         #GRAPHING TO MATPLOTLIB WINDOW
 
         #DYNAMICALLY GETTING NUMBER OF CATEGOREIS FOR EXPLODE
@@ -590,11 +644,80 @@ def weeklySpendingReport():
 
         plt.pie(spendingDF['price'], labels=spendingDF['category'], shadow = True, autopct = '%1.1f%%', explode=explode)
         plt.legend()
-        plt.title(f'Spending Report {date.today() - timedelta(days=7)} - {date.today()}')
+        plt.title(f'Spending Report {date.today() - timedelta(days=7)} To {date.today()}')
     
         plt.show()
         
 
+def SankeyChart(lDate : Calendar, rDate : Calendar):
+    cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
+    with cxn.connect() as con:
+        incomeQuery = f"SELECT * FROM budget.income WHERE idate BETWEEN '{lDate.get_date()}' AND '{rDate.get_date()}';"
+        incomeDF = pd.read_sql(incomeQuery, cxn)
+
+        totalIncome = incomeDF['total_income'].sum()
+        totalChecking = incomeDF['checking'].sum()
+        totalSaving = incomeDF['savings'].sum()
+        totalRetirement = incomeDF['retirement'].sum()
+        totalTax = incomeDF['tax'].sum()
+
+        expenseQuery = f"SELECT * FROM budget.expenses WHERE bdate BETWEEN '{lDate.get_date()}'AND '{rDate.get_date()}';"
+        expenseDF = pd.read_sql(expenseQuery, cxn)
+        
+    sankeyLabels = [
+    'Income',
+    'Housing',
+    'Utilities',
+    'Grocery',
+    'Phone',
+    'Fun',
+    'Misc',
+    'Home',
+    'tax'
+    ]
+
+    categories = [
+    'Housing',
+    'Utilities',
+    'Grocery',
+    'Phone',
+    'Fun',
+    'Misc',
+    'Home'
+    ]
+    
+    
+    housingTotal = 0 
+    utilitiesTotal = 0 
+    groceryTotal = 0 
+    phoneTotal = 0 
+    funTotal = 0
+    miscTotal = 0
+    homeTotal = 0
+    
+
+    categoryList = [housingTotal, utilitiesTotal, groceryTotal, phoneTotal, funTotal, miscTotal, homeTotal]
+
+    index = 0
+    for category in categories: #for each category, query pandas by value and get sum of that column
+        
+        
+        #filters dataframe by category value then summing price
+        filteredDF = expenseDF[expenseDF['category'] == category]
+        
+        categoryList[index] = filteredDF['price'].sum()
+        #categoryList[index] = filteredDF['price'].sum()  #sums price column
+        
+        index = index + 1
+
+    Sankey(flows=[totalIncome, -categoryList[0], -categoryList[1],
+            -categoryList[2], -categoryList[3], -categoryList[4],
+            -categoryList[5], -categoryList[6], totalTax], labels=sankeyLabels, 
+            orientations=[0, 0, 0, 1, -1, 1, 1, 1, -1]).finish()
+    
+    plt.title(f'Sankey {lDate.get_date()} - {rDate.get_date()}')
+    
+    plt.show()
 
 
 windowMain.mainloop()
