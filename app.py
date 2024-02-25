@@ -9,9 +9,9 @@ from openpyxl.chart import PieChart, Reference
 from openpyxl.styles.borders import Border, Side
 from sqlalchemy import create_engine, text
 from PIL import ImageTk, Image
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt, dates
 from matplotlib.sankey import Sankey
-
+import matplotlib.dates as mdates
 
 load_dotenv()
 
@@ -387,16 +387,11 @@ def newExpenseToIncomeWindow():
     net = Label(expenseToIncomeWindow, text='')
     net.grid(row=5, column=2)
 
-    #TODO CONFIGURE CHECKBOX EXCEL OPTION FOR REPORTS
-    #EXCEL CHECKBOX OPTION
-    createExcelVar = IntVar()
-    createExcelCheckBox = Checkbutton(expenseToIncomeWindow, variable=createExcelVar, text='Create Excel')
-    createExcelCheckBox.grid(row=2, column=5)
-
     #EXECUTE EXPENSE TO INCOME REPORT
     executeExpenseToIncomeReportButton = Button(expenseToIncomeWindow, text='Execute', command= lambda: viewExpenseToIncomeReport(lDate, rDate, incomeTotal, expenseTotal, net)) #PASS TOTAL LABELS IN FUNC FOR UPDATE
     executeExpenseToIncomeReportButton.grid(row=3, column=5)
 
+#SANKEY WINDOW
 def newSankeyReportWindow():
     sankeyWindow = Toplevel(windowMain)
     sankeyWindow.title('Sankey Diagram')
@@ -651,22 +646,24 @@ def weeklySpendingReport():
         
 
 def SankeyChart(lDate : Calendar, rDate : Calendar):
+   
     cxn = create_engine(url=f"mysql+pymysql://root:{os.getenv('PASSWORD')}@localhost:3306/Budget")
-    with cxn.connect() as con:
-        incomeQuery = f"SELECT * FROM budget.income WHERE idate BETWEEN '{lDate.get_date()}' AND '{rDate.get_date()}';"
-        incomeDF = pd.read_sql(incomeQuery, cxn)
+    
+    incomeQuery = f"SELECT * FROM income WHERE idate BETWEEN '{lDate.get_date()}' AND '{rDate.get_date()}';"
+    incomeDF = pd.read_sql(incomeQuery, cxn)
+    
+    expenseQuery = f"SELECT * FROM expenses WHERE bdate BETWEEN '{lDate.get_date()}'AND '{rDate.get_date()}';"
+    expenseDF = pd.read_sql(expenseQuery, cxn)
 
-        totalIncome = incomeDF['total_income'].sum()
-        totalChecking = incomeDF['checking'].sum()
-        totalSaving = incomeDF['savings'].sum()
-        totalRetirement = incomeDF['retirement'].sum()
-        totalTax = incomeDF['tax'].sum()
-        TotalUnrealized = totalRetirement + totalTax
-        totalRealized = totalIncome - TotalUnrealized
+    totalIncome = incomeDF['total_income'].sum()
+    totalChecking = incomeDF['checking'].sum()
+    totalSaving = incomeDF['savings'].sum()
+    totalRetirement = incomeDF['retirement'].sum()
+    totalTax = incomeDF['tax'].sum()
+    TotalUnrealized = totalRetirement + totalTax
+    totalRealized = totalIncome - TotalUnrealized
 
-        expenseQuery = f"SELECT * FROM budget.expenses WHERE bdate BETWEEN '{lDate.get_date()}'AND '{rDate.get_date()}';"
-        expenseDF = pd.read_sql(expenseQuery, cxn)
-        
+    
     sankeyLabels = [
     'Income',
     'Housing',
@@ -688,6 +685,16 @@ def SankeyChart(lDate : Calendar, rDate : Calendar):
     'Home'
     ]
     
+    chartColors = [
+        'b',
+        'g',
+        'r',
+        'c',
+        'm',
+        'y',
+        'k'
+    ]
+
     
     housingTotal = 0 
     utilitiesTotal = 0 
@@ -708,17 +715,26 @@ def SankeyChart(lDate : Calendar, rDate : Calendar):
         filteredDF = expenseDF[expenseDF['category'] == category]
         
         categoryList[index] = filteredDF['price'].sum()
-        #categoryList[index] = filteredDF['price'].sum()  #sums price column
+        
+        filteredDF['Bdate'] = pd.to_datetime(filteredDF['Bdate'])
         
         index = index + 1
 
+    #SPENDING PER MONTH
+    expenseDF['Bdate'] = pd.to_datetime(expenseDF['Bdate'])
+    plottingDataFrame = expenseDF[['Bdate', 'price']].copy()
+    plottingDataFrame = plottingDataFrame.groupby(pd.Grouper(key='Bdate', axis=0, freq='ME')).sum()
+    fig, ax = plt.subplots()
+    plottingDataFrame.plot(kind='bar', ax=ax)
+    fig.autofmt_xdate()
+
+
     Sankey(flows=[-totalIncome, categoryList[0], categoryList[1],
             categoryList[2], categoryList[3], categoryList[4],
-            categoryList[5], categoryList[6], totalTax], labels=sankeyLabels, 
-            orientations=[0, 1, -1, 0, 0, 0, 0, 0, 0], rotation=180).finish()
+            categoryList[5], categoryList[6]], labels=sankeyLabels, 
+            orientations=[0, 1, -1, 0, 0, 0, 0, 0], rotation=180).finish()
     
     plt.title(f'Sankey {lDate.get_date()} - {rDate.get_date()}')
-    
     plt.show() 
 
     
